@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biblioteca Pública | Charles Araújo</title>
+<meta name="description" content="Biblioteca digital gratuita: documentos públicos sobre Moçambique e obras em domínio público, para ler online ou descarregar.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+/* Estante de capas com pesquisa; leitor em ecrã inteiro. */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --ink:#17232b; --muted:#5b6b75;
+  --accent:#1f5566; --accent-ink:#ffffff; --brass:#b9852a; --line:#d9e0e4;
+  --shadow:0 1px 2px rgba(23,35,43,.08),0 6px 18px rgba(23,35,43,.08);
+  --display:"Literata",Georgia,serif; --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#10171b; --surface:#18232a; --ink:#e6edf0; --muted:#97a8b2;
+  --accent:#6fb3c6; --accent-ink:#0d1a1f; --brass:#d9a94f; --line:#2a3a43;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.35); color-scheme:dark;}}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer} a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+header.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.toprow{display:flex;align-items:baseline;gap:14px;padding:16px 0 10px;flex-wrap:wrap}
+.toprow h1{font:700 24px/1.1 var(--display);margin:0}
+.toprow p{margin:0;color:var(--muted);font-size:14px}
+.tools{display:flex;gap:10px;flex-wrap:wrap;padding:0 0 12px;align-items:center}
+.search{flex:1 1 260px}
+.search input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:12px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+main{padding:22px 0 40px}
+.intro{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--brass);border-radius:8px;padding:14px 16px;margin-bottom:22px;max-width:75ch}
+.intro p{margin:0 0 6px} .intro p:last-child{margin:0;color:var(--muted);font-size:13px}
+h2.sec{font:600 13px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:6px 0 14px}
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:26px 20px;margin-bottom:34px}
+.book{display:flex;flex-direction:column;gap:8px;background:none;border:0;padding:0;text-align:left}
+.cover{aspect-ratio:2/3;width:100%;border-radius:3px 6px 6px 3px;overflow:hidden;box-shadow:var(--shadow);position:relative;background:var(--line);transition:transform .15s}
+.book:hover .cover{transform:translateY(-3px)}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover::before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:linear-gradient(90deg,rgba(0,0,0,.22),transparent);z-index:1}
+.ph{width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:16px 14px 14px 18px;color:#fff;background:var(--accent)}
+.ph .t{font:700 15px/1.2 var(--display);overflow-wrap:anywhere}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--brass)}
+.meta .t{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.meta .a{color:var(--muted);font-size:13px}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding:20px 0 40px;color:var(--muted);font-size:13px}
+/* Detalhe */
+.backdrop{position:fixed;inset:0;background:rgba(10,16,20,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+.backdrop.open{display:flex}
+.modal{background:var(--surface);border-radius:12px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.detail{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:20px}
+.detail h3{font:700 21px/1.25 var(--display);margin:0 0 4px}
+.detail .a{color:var(--muted);margin-bottom:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center}
+.btn:hover{border-color:var(--accent)} .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.icon{padding:7px 10px;min-width:38px;justify-content:center}
+.src{font-size:13px;color:var(--muted);margin-top:10px}
+@media (max-width:520px){.detail{grid-template-columns:1fr}.detail .cover{max-width:140px}}
+/* Leitor */
+.reader{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column}
+.reader.open{display:flex}
+.rbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rt{font-weight:600;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40ch}
+.pg{display:flex;align-items:center;gap:6px;color:var(--muted)} .pg input{width:58px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:6px;background:var(--bg)}
+.stage{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:18px;position:relative}
+.stage canvas{box-shadow:var(--shadow);background:#fff}
+.reader.night .stage canvas{filter:invert(.9) hue-rotate(180deg)}
+.rstatus{position:absolute;left:50%;top:40%;transform:translateX(-50%);color:var(--muted);text-align:center}
+.rfoot{display:flex;justify-content:center;gap:10px;padding:8px;background:var(--surface);border-top:1px solid var(--line)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="toprow"><h1>Biblioteca Pública</h1><p>Leitura livre e gratuita, sem registo</p></div>
+  <div class="tools">
+    <div class="search"><input id="q" type="search" placeholder="Pesquisar por título, autor ou tema…" aria-label="Pesquisar"></div>
+    <select id="sort" aria-label="Ordenar"><option value="cat">Por categoria</option><option value="title">Título (A–Z)</option><option value="author">Autor (A–Z)</option><option value="year">Mais recentes</option></select>
+  </div>
+  <div class="chips" id="cats"></div>
+</div></header>
+
+<main class="wrap">
+  <div class="intro">
+    <p>Documentos públicos sobre Moçambique e obras em domínio público, para ler aqui no navegador ou descarregar em PDF.</p>
+    <p>Cada documento indica a fonte de onde vem. O progresso de leitura fica guardado apenas neste dispositivo.</p>
+  </div>
+  <section id="contSec" hidden><h2 class="sec">Continuar a ler</h2><div class="shelf" id="cont"></div></section>
+  <section><h2 class="sec" id="allTitle">Todos os documentos</h2><div class="shelf" id="shelf"></div><div id="empty"></div></section>
+</main>
+<footer class="wrap">Biblioteca organizada por Charles Alberto Araújo, Maputo. Os documentos sobre Carlos Cardoso e corrupção vêm do arquivo <a href="https://university.open.ac.uk/technology/mozambique/corruption-murder-carlos-cardoso">Mozambique Documents da Open University</a>.</footer>
+
+<div class="backdrop" id="detBk" role="dialog" aria-modal="true"><div class="modal" id="detBody"></div></div>
+
+<div class="reader" id="reader">
+  <div class="rbar">
+    <button class="btn icon" id="rBack" aria-label="Voltar">←</button>
+    <span class="rt" id="rTitle"></span>
+    <button class="btn icon" id="rPrev" aria-label="Página anterior">‹</button>
+    <span class="pg"><input id="rPage" type="number" min="1" aria-label="Página"> / <span id="rTotal">–</span></span>
+    <button class="btn icon" id="rNext" aria-label="Página seguinte">›</button>
+    <button class="btn icon" id="rOut" aria-label="Reduzir">−</button>
+    <button class="btn icon" id="rFit" aria-label="Ajustar à largura">↔</button>
+    <button class="btn icon" id="rIn" aria-label="Ampliar">+</button>
+    <button class="btn icon" id="rNight" aria-label="Modo nocturno">☾</button>
+    <a class="btn icon" id="rDl" aria-label="Descarregar PDF" download>⤓</a>
+  </div>
+  <div class="stage" id="stage"><canvas id="canvas"></canvas><div class="rstatus" id="rStatus"></div></div>
+  <div class="rfoot"><button class="btn" id="rPrev2">‹ Anterior</button><button class="btn" id="rNext2">Seguinte ›</button></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let books = [], filt = { q: "", cat: "Todas", sort: "cat" };
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+let progress = store.get("bp_progress", {});
+function el(t, a = {}, ...k) { const e = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === "text") e.textContent = v; else if (x === "class") e.className = v; else if (x.startsWith("on")) e.addEventListener(x.slice(2), v); else e.setAttribute(x, v); } k.forEach(c => c && e.append(c)); return e; }
+const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const mb = b => (b / 1048576).toFixed(1).replace(".", ",") + " MB";
+
+function cover(b) {
+  const c = el("div", { class: "cover" });
+  if (b.cover) c.append(el("img", { src: "capas/" + b.id + ".jpg", alt: "", loading: "lazy" }));
+  else c.append(el("div", { class: "ph" }, el("div", { class: "t", text: b.title }), el("div", { text: b.author })));
+  return c;
+}
+function card(b) {
+  const btn = el("button", { class: "book", onclick: () => openDetail(b), "aria-label": "Abrir " + b.title }, cover(b));
+  const p = progress[b.id];
+  if (p) { const bar = el("div", { class: "bar" }), i = el("i"); i.style.width = Math.min(100, Math.round(p.page / b.pages * 100)) + "%"; bar.append(i); btn.append(bar); }
+  btn.append(el("div", { class: "meta" }, el("div", { class: "t", text: b.title }), el("div", { class: "a", text: [b.author, b.year].filter(Boolean).join(" · ") })));
+  return btn;
+}
+function render() {
+  const cats = [...new Set(books.map(b => b.category))].sort((a, b) => a.localeCompare(b, "pt"));
+  $("#cats").replaceChildren(...["Todas", ...cats].map(c => el("button", { class: "chip" + (filt.cat === c ? " on" : ""), text: c, onclick: () => { filt.cat = c; render(); } })));
+  const q = norm(filt.q);
+  let list = books.filter(b => (filt.cat === "Todas" || b.category === filt.cat) && (!q || norm([b.title, b.author, b.category, b.year].join(" ")).includes(q)));
+  const by = { cat: (a, b) => a.category.localeCompare(b.category, "pt") || a.title.localeCompare(b.title, "pt"), title: (a, b) => a.title.localeCompare(b.title, "pt"), author: (a, b) => (a.author || "~").localeCompare(b.author || "~", "pt"), year: (a, b) => (b.year || "0").localeCompare(a.year || "0") };
+  list.sort(by[filt.sort]);
+  const filtering = q || filt.cat !== "Todas";
+  $("#allTitle").textContent = filtering ? `Resultados (${list.length})` : `Todos os documentos (${books.length})`;
+  $("#shelf").replaceChildren(...list.map(card));
+  $("#empty").replaceChildren(list.length ? "" : el("div", { class: "empty", text: "Nenhum documento corresponde à pesquisa." }));
+  const cont = books.filter(b => progress[b.id]).sort((a, b) => progress[b.id].t - progress[a.id].t).slice(0, 6);
+  $("#contSec").hidden = !cont.length || filtering;
+  $("#cont").replaceChildren(...cont.map(card));
+}
+function openDetail(b) {
+  const p = progress[b.id];
+  const info = el("div", {},
+    el("h3", { text: b.title }), el("div", { class: "a", text: [b.author, b.year].filter(Boolean).join(" · ") || "Autor não indicado" }),
+    el("div", { class: "row" }, el("span", { class: "tag", text: b.category }), el("span", { class: "tag", text: b.pages + " páginas" }), el("span", { class: "tag", text: mb(b.size) })));
+  const row = el("div", { class: "row" },
+    el("button", { class: "btn primary", text: p ? "Continuar na pág. " + p.page : "Ler agora", onclick: () => { closeDetail(); openReader(b, p ? p.page : 1); } }),
+    el("a", { class: "btn", href: "pdf/" + b.id + ".pdf", download: "", text: "Descarregar PDF" }),
+    el("button", { class: "btn", text: "Fechar", onclick: closeDetail }));
+  info.append(row);
+  const src = el("div", { class: "src", text: "Fonte: " });
+  if (b.sourceUrl) src.append(el("a", { href: b.sourceUrl, text: b.source, target: "_blank", rel: "noopener" })); else src.append(b.source);
+  info.append(src);
+  $("#detBody").replaceChildren(el("div", { class: "detail" }, cover(b), info));
+  $("#detBk").classList.add("open");
+}
+function closeDetail() { $("#detBk").classList.remove("open"); }
+$("#detBk").onclick = e => { if (e.target.id === "detBk") closeDetail(); };
+
+/* Leitor */
+const R = { b: null, pdf: null, page: 1, scale: null, task: null };
+async function openReader(b, page) {
+  R.b = b; R.page = page; R.scale = null;
+  $("#rTitle").textContent = b.title; $("#rTotal").textContent = b.pages; $("#rDl").href = "pdf/" + b.id + ".pdf";
+  $("#reader").classList.add("open"); document.body.style.overflow = "hidden";
+  const cv = $("#canvas"); cv.width = cv.height = 0; $("#rStatus").textContent = "A abrir o documento…";
+  try {
+    if (!window.pdfjsLib) throw new Error("pdfjs");
+    const pdf = await pdfjsLib.getDocument({ url: "pdf/" + b.id + ".pdf", isEvalSupported: false }).promise;
+    if (R.b !== b) return;
+    R.pdf = pdf; $("#rTotal").textContent = pdf.numPages; R.page = Math.min(Math.max(1, page), pdf.numPages);
+    $("#rStatus").textContent = ""; draw();
+  } catch { $("#rStatus").replaceChildren("Não foi possível mostrar este PDF aqui. ", el("a", { href: "pdf/" + b.id + ".pdf", text: "Abra-o directamente" }), "."); }
+}
+async function draw() {
+  const page = await R.pdf.getPage(R.page);
+  if (R.scale == null) { const w = $("#stage").clientWidth - 36; R.scale = Math.min(Math.max(w / page.getViewport({ scale: 1 }).width, .3), 2.2); }
+  const dpr = window.devicePixelRatio || 1, vp = page.getViewport({ scale: R.scale * dpr }), cv = $("#canvas");
+  if (R.task) try { R.task.cancel(); } catch {}
+  cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+  cv.style.width = Math.floor(vp.width / dpr) + "px"; cv.style.height = Math.floor(vp.height / dpr) + "px";
+  R.task = page.render({ canvasContext: cv.getContext("2d"), viewport: vp });
+  try { await R.task.promise; } catch (e) { if (e && e.name === "RenderingCancelledException") return; }
+  $("#rPage").value = R.page; $("#stage").scrollTop = 0;
+  progress[R.b.id] = { page: R.page, t: Date.now() }; store.set("bp_progress", progress);
+}
+function go(n) { if (!R.pdf) return; const p = Math.min(Math.max(1, n), R.pdf.numPages); if (p !== R.page) { R.page = p; draw(); } }
+function closeReader() { $("#reader").classList.remove("open"); document.body.style.overflow = ""; R.b = null; R.pdf = null; render(); }
+$("#rBack").onclick = closeReader;
+$("#rPrev").onclick = $("#rPrev2").onclick = () => go(R.page - 1);
+$("#rNext").onclick = $("#rNext2").onclick = () => go(R.page + 1);
+$("#rPage").onchange = e => go(parseInt(e.target.value, 10) || 1);
+$("#rIn").onclick = () => { R.scale = Math.min(R.scale * 1.2, 5); draw(); };
+$("#rOut").onclick = () => { R.scale = Math.max(R.scale / 1.2, .25); draw(); };
+$("#rFit").onclick = () => { R.scale = null; draw(); };
+$("#rNight").onclick = () => $("#reader").classList.toggle("night");
+let tx = null;
+$("#stage").addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
+$("#stage").addEventListener("touchend", e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx, st = $("#stage"); tx = null; if (Math.abs(dx) > 70 && st.scrollWidth <= st.clientWidth + 2) go(R.page + (dx < 0 ? 1 : -1)); });
+document.addEventListener("keydown", e => {
+  if ($("#reader").classList.contains("open") && e.target.tagName !== "INPUT") {
+    if (e.key === "ArrowRight") go(R.page + 1); else if (e.key === "ArrowLeft") go(R.page - 1); else if (e.key === "Escape") closeReader();
+  } else if (e.key === "Escape") closeDetail();
+});
+$("#q").oninput = e => { filt.q = e.target.value; render(); };
+$("#sort").onchange = e => { filt.sort = e.target.value; render(); };
+
+fetch("livros.json").then(r => r.json()).then(d => { books = d; render(); })
+  .catch(() => $("#empty").replaceChildren(el("div", { class: "empty", text: "Não foi possível carregar o catálogo. Recarregue a página." })));
+</script>
+</body>
+</html>
