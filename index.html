@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Biblioteca Pública | Charles Araújo</title>
-<meta name="description" content="Biblioteca digital gratuita: documentos públicos sobre Moçambique e obras em domínio público, para ler online ou descarregar.">
+<title>Biblioteca | Charles Araújo</title>
+<meta name="description" content="Biblioteca digital com acesso reservado a leitores registados.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <style>
@@ -82,25 +83,105 @@ footer{border-top:1px solid var(--line);padding:20px 0 40px;color:var(--muted);f
 .rstatus{position:absolute;left:50%;top:40%;transform:translateX(-50%);color:var(--muted);text-align:center}
 .rfoot{display:flex;justify-content:center;gap:10px;padding:8px;background:var(--surface);border-top:1px solid var(--line)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Login, painel de leitores e mensagens */
+.auth{max-width:400px;margin:48px auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;box-shadow:var(--shadow)}
+.auth h2{font:700 22px var(--display);margin:0 0 4px}
+.auth p{margin:0 0 16px;color:var(--muted);font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tabs button{flex:1;border:1px solid var(--line);background:transparent;border-radius:8px;padding:8px}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.field{display:grid;gap:4px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.field input{border:1px solid var(--line);border-radius:7px;padding:10px;background:var(--bg);color:var(--ink);font-size:15px}
+.msg{font-size:14px;margin:10px 0 0;min-height:1.2em}
+.msg.err{color:#b3332d} .msg.ok{color:#2c7a4b}
+.linkbtn{background:none;border:0;color:var(--accent);padding:0;font-size:13px;text-decoration:underline}
+.userbar{display:flex;gap:10px;align-items:center;margin-left:auto;font-size:13px;color:var(--muted)}
+.notice{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--brass);border-radius:8px;padding:16px;max-width:60ch;margin:40px auto}
+.admin{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:24px}
+.admin h3{font:700 18px var(--display);margin:0 0 10px}
+.admin form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.admin form input{flex:1 1 180px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:var(--bg);color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:2px 9px}
+.pill.on{background:#d9efe2;color:#1f5e3a}.pill.off{background:#f3dddb;color:#8a2e29}
+.tablewrap{overflow-x:auto}
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="toprow"><h1>Biblioteca Pública</h1><p>Leitura livre e gratuita, sem registo</p></div>
-  <div class="tools">
-    <div class="search"><input id="q" type="search" placeholder="Pesquisar por título, autor ou tema…" aria-label="Pesquisar"></div>
-    <select id="sort" aria-label="Ordenar"><option value="cat">Por categoria</option><option value="title">Título (A–Z)</option><option value="author">Autor (A–Z)</option><option value="year">Mais recentes</option></select>
+  <div class="toprow"><h1>Biblioteca</h1><p>Acesso reservado a leitores registados</p>
+    <div class="userbar" id="userbar" hidden><span id="who"></span><button class="btn" id="adminBtn" hidden>Gerir leitores</button><button class="btn" id="logout">Sair</button></div>
   </div>
-  <div class="chips" id="cats"></div>
+  <div id="libTools" hidden>
+    <div class="tools">
+      <div class="search"><input id="q" type="search" placeholder="Pesquisar por título, autor ou tema…" aria-label="Pesquisar"></div>
+      <select id="sort" aria-label="Ordenar"><option value="cat">Por categoria</option><option value="title">Título (A–Z)</option><option value="author">Autor (A–Z)</option><option value="year">Mais recentes</option></select>
+    </div>
+    <div class="chips" id="cats"></div>
+  </div>
 </div></header>
 
 <main class="wrap">
-  <div class="intro">
-    <p>Documentos públicos sobre Moçambique e obras em domínio público, para ler aqui no navegador ou descarregar em PDF.</p>
-    <p>Cada documento indica a fonte de onde vem. O progresso de leitura fica guardado apenas neste dispositivo.</p>
-  </div>
-  <section id="contSec" hidden><h2 class="sec">Continuar a ler</h2><div class="shelf" id="cont"></div></section>
-  <section><h2 class="sec" id="allTitle">Todos os documentos</h2><div class="shelf" id="shelf"></div><div id="empty"></div></section>
+  <!-- Entrar / criar conta -->
+  <section id="authView" hidden>
+    <div class="auth">
+      <h2 id="authTitle">Entrar</h2>
+      <p id="authSub">Use o e-mail com que foi registado pelo administrador.</p>
+      <div class="tabs" id="authTabs"><button class="on" data-m="login">Entrar</button><button data-m="signup">Criar senha (1.º acesso)</button></div>
+      <form id="authForm">
+        <label class="field" for="email">E-mail<input id="email" type="email" autocomplete="email" required></label>
+        <label class="field" for="pass">Senha<input id="pass" type="password" autocomplete="current-password" minlength="6" required></label>
+        <button class="btn primary" id="authGo" type="submit" style="width:100%;justify-content:center">Entrar</button>
+      </form>
+      <p class="msg" id="authMsg"></p>
+      <button class="linkbtn" id="forgot" type="button">Esqueci-me da senha</button>
+    </div>
+  </section>
+
+  <!-- Nova senha (link de recuperação) -->
+  <section id="resetView" hidden>
+    <div class="auth">
+      <h2>Definir nova senha</h2>
+      <form id="resetForm">
+        <label class="field" for="newpass">Nova senha<input id="newpass" type="password" autocomplete="new-password" minlength="6" required></label>
+        <button class="btn primary" type="submit" style="width:100%;justify-content:center">Guardar senha</button>
+      </form>
+      <p class="msg" id="resetMsg"></p>
+    </div>
+  </section>
+
+  <!-- Sem acesso -->
+  <section id="noAccess" hidden>
+    <div class="notice"><p><b>A sua conta ainda não tem acesso à biblioteca.</b></p><p>Peça ao administrador que registe o e-mail <b id="noAccEmail"></b>. Depois de registado, basta voltar a abrir esta página.</p></div>
+  </section>
+
+  <!-- Painel do administrador -->
+  <section id="adminView" hidden>
+    <div class="admin">
+      <h3>Leitores registados</h3>
+      <form id="addForm">
+        <input id="addNome" placeholder="Nome" aria-label="Nome do leitor">
+        <input id="addEmail" type="email" placeholder="E-mail" aria-label="E-mail do leitor" required>
+        <button class="btn primary" type="submit">Registar leitor</button>
+      </form>
+      <p class="msg" id="addMsg"></p>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Estado</th><th>Registado</th><th></th></tr></thead><tbody id="leitoresBody"></tbody></table></div>
+    </div>
+    <div class="admin">
+      <h3>Documentos no servidor</h3>
+      <p id="docsInfo" style="margin:0 0 10px;color:var(--muted)">A verificar…</p>
+      <button class="btn" id="migrate" hidden>Copiar documentos em falta para o servidor</button>
+      <p class="msg" id="migMsg"></p>
+    </div>
+  </section>
+
+  <!-- Biblioteca -->
+  <section id="libView" hidden>
+    <section id="contSec" hidden><h2 class="sec">Continuar a ler</h2><div class="shelf" id="cont"></div></section>
+    <section><h2 class="sec" id="allTitle">Todos os documentos</h2><div class="shelf" id="shelf"></div><div id="empty"></div></section>
+  </section>
 </main>
 <footer class="wrap">Biblioteca organizada por Charles Alberto Araújo, Maputo. Os documentos sobre Carlos Cardoso e corrupção vêm do arquivo <a href="https://university.open.ac.uk/technology/mozambique/corruption-murder-carlos-cardoso">Mozambique Documents da Open University</a>.</footer>
 
@@ -117,31 +198,116 @@ footer{border-top:1px solid var(--line);padding:20px 0 40px;color:var(--muted);f
     <button class="btn icon" id="rFit" aria-label="Ajustar à largura">↔</button>
     <button class="btn icon" id="rIn" aria-label="Ampliar">+</button>
     <button class="btn icon" id="rNight" aria-label="Modo nocturno">☾</button>
-    <a class="btn icon" id="rDl" aria-label="Descarregar PDF" download>⤓</a>
   </div>
   <div class="stage" id="stage"><canvas id="canvas"></canvas><div class="rstatus" id="rStatus"></div></div>
   <div class="rfoot"><button class="btn" id="rPrev2">‹ Anterior</button><button class="btn" id="rNext2">Seguinte ›</button></div>
 </div>
 
 <script>
+const SUPABASE_URL = "https://pvrhueextegmgqnxbtyi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_XKs1LAPj8EKApRHmSz2b4w_7tZ0FYn4";
+const BUCKET = "livros";
+// Cópia dos PDFs no histórico do GitHub, usada só pelo administrador para os enviar para o servidor.
+const GITHUB_PDF_BASE = "https://raw.githubusercontent.com/charlierobert175-star/Biblioteca/b7684e22b0cbb9832dbef0c5aec30a5b8b878fff/pdf/";
+const SITE_URL = location.origin + location.pathname;
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = s => document.querySelector(s);
-let books = [], filt = { q: "", cat: "Todas", sort: "cat" };
+let books = [], filt = { q: "", cat: "Todas", sort: "cat" }, me = null, isAdmin = false;
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 let progress = store.get("bp_progress", {});
 function el(t, a = {}, ...k) { const e = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === "text") e.textContent = v; else if (x === "class") e.className = v; else if (x.startsWith("on")) e.addEventListener(x.slice(2), v); else e.setAttribute(x, v); } k.forEach(c => c && e.append(c)); return e; }
 const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const mb = b => (b / 1048576).toFixed(1).replace(".", ",") + " MB";
+function show(id) { for (const s of ["authView", "resetView", "noAccess", "adminView", "libView"]) $("#" + s).hidden = s !== id && !(id === "libView+admin" && (s === "libView" || s === "adminView")); }
+function msg(sel, text, kind) { const m = $(sel); m.textContent = text || ""; m.className = "msg" + (kind ? " " + kind : ""); }
+const ERR = { "Invalid login credentials": "E-mail ou senha incorrectos.", "Email not confirmed": "Confirme primeiro o seu e-mail: abra o link que lhe enviámos.", "User already registered": "Este e-mail já tem senha. Use o separador Entrar." };
+const tr = e => ERR[e?.message] || e?.message || "Ocorreu um erro. Tente outra vez.";
 
-function cover(b) {
-  const c = el("div", { class: "cover" });
-  if (b.cover) c.append(el("img", { src: "capas/" + b.id + ".jpg", alt: "", loading: "lazy" }));
-  else c.append(el("div", { class: "ph" }, el("div", { class: "t", text: b.title }), el("div", { text: b.author })));
-  return c;
+/* ---------- Autenticação ---------- */
+let mode = "login";
+$("#authTabs").onclick = e => { const m = e.target.dataset?.m; if (!m) return; mode = m; [...$("#authTabs").children].forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  $("#authGo").textContent = m === "login" ? "Entrar" : "Criar senha"; $("#authTitle").textContent = m === "login" ? "Entrar" : "Primeiro acesso";
+  $("#authSub").textContent = m === "login" ? "Use o e-mail com que foi registado pelo administrador." : "Escreva o e-mail com que foi registado e escolha uma senha (mínimo 6 caracteres).";
+  $("#pass").autocomplete = m === "login" ? "current-password" : "new-password"; msg("#authMsg"); };
+$("#authForm").onsubmit = async e => {
+  e.preventDefault(); const email = $("#email").value.trim(), password = $("#pass").value; $("#authGo").disabled = true; msg("#authMsg", "Um momento…");
+  try {
+    if (mode === "login") { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; msg("#authMsg"); }
+    else { const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: SITE_URL } }); if (error) throw error;
+      if (!data.session) msg("#authMsg", "Conta criada. Enviámos um e-mail de confirmação: abra o link e depois entre com a sua senha.", "ok"); }
+  } catch (err) { msg("#authMsg", tr(err), "err"); }
+  $("#authGo").disabled = false;
+};
+$("#forgot").onclick = async () => {
+  const email = $("#email").value.trim(); if (!email) { msg("#authMsg", "Escreva primeiro o seu e-mail no campo acima.", "err"); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: SITE_URL });
+  msg("#authMsg", error ? tr(error) : "Se o e-mail existir, receberá um link para definir uma nova senha.", error ? "err" : "ok");
+};
+$("#resetForm").onsubmit = async e => { e.preventDefault(); const { error } = await sb.auth.updateUser({ password: $("#newpass").value });
+  if (error) msg("#resetMsg", tr(error), "err"); else { msg("#resetMsg", "Senha guardada.", "ok"); history.replaceState(null, "", SITE_URL); setTimeout(() => route(), 800); } };
+$("#logout").onclick = async () => { await sb.auth.signOut(); };
+let recovering = false;
+sb.auth.onAuthStateChange((ev, session) => { if (ev === "PASSWORD_RECOVERY") { recovering = true; show("resetView"); return; } if (!recovering) setTimeout(() => route(session), 0); });
+
+async function route(session) {
+  if (session === undefined) session = (await sb.auth.getSession()).data.session;
+  me = session?.user || null;
+  $("#userbar").hidden = !me; $("#libTools").hidden = true;
+  if (!me) { show("authView"); return; }
+  $("#who").textContent = me.email;
+  const [{ data: leitor }, { data: admin }] = await Promise.all([sb.rpc("e_leitor"), sb.rpc("e_admin")]);
+  isAdmin = !!admin; $("#adminBtn").hidden = !isAdmin;
+  if (!leitor) { $("#noAccEmail").textContent = me.email; show("noAccess"); return; }
+  $("#libTools").hidden = false; show("libView");
+  if (!books.length) { try { books = await (await fetch("livros.json")).json(); } catch { $("#empty").replaceChildren(el("div", { class: "empty", text: "Não foi possível carregar o catálogo." })); } }
+  render();
 }
+
+/* ---------- Painel do administrador ---------- */
+$("#adminBtn").onclick = () => { const open = $("#adminView").hidden; $("#adminView").hidden = !open; $("#adminBtn").textContent = open ? "Fechar gestão" : "Gerir leitores"; if (open) { loadLeitores(); checkDocs(); } };
+async function loadLeitores() {
+  const { data, error } = await sb.from("leitores").select("*").order("criado_em", { ascending: false });
+  const body = $("#leitoresBody"); body.replaceChildren();
+  if (error) { body.append(el("tr", {}, el("td", { colspan: 5, text: "Erro: " + tr(error) }))); return; }
+  if (!data.length) body.append(el("tr", {}, el("td", { colspan: 5, text: "Ainda não há leitores registados." })));
+  for (const r of data) body.append(el("tr", {},
+    el("td", { text: r.nome || "—" }), el("td", { text: r.email }),
+    el("td", {}, el("span", { class: "pill " + (r.ativo ? "on" : "off"), text: r.ativo ? "Com acesso" : "Suspenso" })),
+    el("td", { text: new Date(r.criado_em).toLocaleDateString("pt-PT") }),
+    el("td", {}, el("button", { class: "btn", text: r.ativo ? "Suspender" : "Reactivar", onclick: async () => { await sb.from("leitores").update({ ativo: !r.ativo }).eq("email", r.email); loadLeitores(); } }), " ",
+      el("button", { class: "btn", text: "Remover", onclick: async e => { if (e.currentTarget.dataset.c !== "1") { e.currentTarget.dataset.c = "1"; e.currentTarget.textContent = "Confirmar"; return; } await sb.from("leitores").delete().eq("email", r.email); loadLeitores(); } }))));
+}
+$("#addForm").onsubmit = async e => {
+  e.preventDefault(); const email = $("#addEmail").value.trim().toLowerCase(), nome = $("#addNome").value.trim();
+  const { error } = await sb.from("leitores").upsert({ email, nome: nome || null, ativo: true });
+  if (error) msg("#addMsg", tr(error), "err"); else { msg("#addMsg", `${email} registado. Envie-lhe o endereço desta página: no 1.º acesso escolhe "Criar senha".`, "ok"); $("#addForm").reset(); loadLeitores(); }
+};
+async function checkDocs() {
+  const { data, error } = await sb.storage.from(BUCKET).list("", { limit: 1000 });
+  if (error) { $("#docsInfo").textContent = "Erro ao ler o servidor: " + tr(error); return; }
+  const have = new Set(data.map(f => f.name)), missing = books.filter(b => !have.has(b.id + ".pdf"));
+  $("#docsInfo").textContent = `${books.length - missing.length} de ${books.length} documentos estão no servidor.`;
+  $("#migrate").hidden = !missing.length; $("#migrate").dataset.n = missing.length;
+  return missing;
+}
+$("#migrate").onclick = async () => {
+  const missing = await checkDocs(); if (!missing?.length) return; $("#migrate").disabled = true; let ok = 0;
+  for (const b of missing) {
+    msg("#migMsg", `A enviar ${ok + 1} de ${missing.length}: ${b.title}`);
+    try { const r = await fetch(GITHUB_PDF_BASE + b.id + ".pdf"); if (!r.ok) throw new Error("download " + r.status);
+      const { error } = await sb.storage.from(BUCKET).upload(b.id + ".pdf", await r.blob(), { contentType: "application/pdf", upsert: true }); if (error) throw error; ok++;
+    } catch (err) { msg("#migMsg", `Falhou em "${b.title}": ${tr(err)}`, "err"); break; }
+  }
+  if (ok === missing.length) msg("#migMsg", `Pronto: ${ok} documentos enviados.`, "ok");
+  $("#migrate").disabled = false; checkDocs();
+};
+
+/* ---------- Estante ---------- */
+function cover(b) { const c = el("div", { class: "cover" }); if (b.cover) c.append(el("img", { src: "capas/" + b.id + ".jpg", alt: "", loading: "lazy" })); else c.append(el("div", { class: "ph" }, el("div", { class: "t", text: b.title }))); return c; }
 function card(b) {
   const btn = el("button", { class: "book", onclick: () => openDetail(b), "aria-label": "Abrir " + b.title }, cover(b));
-  const p = progress[b.id];
-  if (p) { const bar = el("div", { class: "bar" }), i = el("i"); i.style.width = Math.min(100, Math.round(p.page / b.pages * 100)) + "%"; bar.append(i); btn.append(bar); }
+  const p = progress[b.id]; if (p) { const bar = el("div", { class: "bar" }), i = el("i"); i.style.width = Math.min(100, Math.round(p.page / b.pages * 100)) + "%"; bar.append(i); btn.append(bar); }
   btn.append(el("div", { class: "meta" }, el("div", { class: "t", text: b.title }), el("div", { class: "a", text: [b.author, b.year].filter(Boolean).join(" · ") })));
   return btn;
 }
@@ -157,54 +323,43 @@ function render() {
   $("#shelf").replaceChildren(...list.map(card));
   $("#empty").replaceChildren(list.length ? "" : el("div", { class: "empty", text: "Nenhum documento corresponde à pesquisa." }));
   const cont = books.filter(b => progress[b.id]).sort((a, b) => progress[b.id].t - progress[a.id].t).slice(0, 6);
-  $("#contSec").hidden = !cont.length || filtering;
-  $("#cont").replaceChildren(...cont.map(card));
+  $("#contSec").hidden = !cont.length || filtering; $("#cont").replaceChildren(...cont.map(card));
 }
+async function signedUrl(b) { const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(b.id + ".pdf", 3600); if (error) throw error; return data.signedUrl; }
 function openDetail(b) {
   const p = progress[b.id];
-  const info = el("div", {},
-    el("h3", { text: b.title }), el("div", { class: "a", text: [b.author, b.year].filter(Boolean).join(" · ") || "Autor não indicado" }),
+  const info = el("div", {}, el("h3", { text: b.title }), el("div", { class: "a", text: [b.author, b.year].filter(Boolean).join(" · ") || "Autor não indicado" }),
     el("div", { class: "row" }, el("span", { class: "tag", text: b.category }), el("span", { class: "tag", text: b.pages + " páginas" }), el("span", { class: "tag", text: mb(b.size) })));
   const row = el("div", { class: "row" },
     el("button", { class: "btn primary", text: p ? "Continuar na pág. " + p.page : "Ler agora", onclick: () => { closeDetail(); openReader(b, p ? p.page : 1); } }),
-    el("a", { class: "btn", href: "pdf/" + b.id + ".pdf", download: "", text: "Descarregar PDF" }),
+    el("button", { class: "btn", text: "Descarregar PDF", onclick: async e => { try { const u = await signedUrl(b); const a = el("a", { href: u + "&download=" + encodeURIComponent(b.id + ".pdf") }); document.body.append(a); a.click(); a.remove(); } catch (err) { e.target.textContent = "Indisponível"; } } }),
     el("button", { class: "btn", text: "Fechar", onclick: closeDetail }));
   info.append(row);
-  const src = el("div", { class: "src", text: "Fonte: " });
-  if (b.sourceUrl) src.append(el("a", { href: b.sourceUrl, text: b.source, target: "_blank", rel: "noopener" })); else src.append(b.source);
-  info.append(src);
-  $("#detBody").replaceChildren(el("div", { class: "detail" }, cover(b), info));
-  $("#detBk").classList.add("open");
+  const src = el("div", { class: "src", text: "Fonte: " }); if (b.sourceUrl) src.append(el("a", { href: b.sourceUrl, text: b.source, target: "_blank", rel: "noopener" })); else src.append(b.source); info.append(src);
+  $("#detBody").replaceChildren(el("div", { class: "detail" }, cover(b), info)); $("#detBk").classList.add("open");
 }
 function closeDetail() { $("#detBk").classList.remove("open"); }
 $("#detBk").onclick = e => { if (e.target.id === "detBk") closeDetail(); };
 
-/* Leitor */
+/* ---------- Leitor ---------- */
 const R = { b: null, pdf: null, page: 1, scale: null, task: null };
 async function openReader(b, page) {
-  R.b = b; R.page = page; R.scale = null;
-  $("#rTitle").textContent = b.title; $("#rTotal").textContent = b.pages; $("#rDl").href = "pdf/" + b.id + ".pdf";
+  R.b = b; R.page = page; R.scale = null; $("#rTitle").textContent = b.title; $("#rTotal").textContent = b.pages;
   $("#reader").classList.add("open"); document.body.style.overflow = "hidden";
   const cv = $("#canvas"); cv.width = cv.height = 0; $("#rStatus").textContent = "A abrir o documento…";
-  try {
-    if (!window.pdfjsLib) throw new Error("pdfjs");
-    const pdf = await pdfjsLib.getDocument({ url: "pdf/" + b.id + ".pdf", isEvalSupported: false }).promise;
-    if (R.b !== b) return;
-    R.pdf = pdf; $("#rTotal").textContent = pdf.numPages; R.page = Math.min(Math.max(1, page), pdf.numPages);
-    $("#rStatus").textContent = ""; draw();
-  } catch { $("#rStatus").replaceChildren("Não foi possível mostrar este PDF aqui. ", el("a", { href: "pdf/" + b.id + ".pdf", text: "Abra-o directamente" }), "."); }
+  try { const url = await signedUrl(b); const pdf = await pdfjsLib.getDocument({ url, isEvalSupported: false }).promise; if (R.b !== b) return;
+    R.pdf = pdf; $("#rTotal").textContent = pdf.numPages; R.page = Math.min(Math.max(1, page), pdf.numPages); $("#rStatus").textContent = ""; draw();
+  } catch (err) { $("#rStatus").textContent = "Este documento ainda não está disponível. Tente mais tarde ou avise o administrador."; }
 }
 async function draw() {
   const page = await R.pdf.getPage(R.page);
   if (R.scale == null) { const w = $("#stage").clientWidth - 36; R.scale = Math.min(Math.max(w / page.getViewport({ scale: 1 }).width, .3), 2.2); }
   const dpr = window.devicePixelRatio || 1, vp = page.getViewport({ scale: R.scale * dpr }), cv = $("#canvas");
   if (R.task) try { R.task.cancel(); } catch {}
-  cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
-  cv.style.width = Math.floor(vp.width / dpr) + "px"; cv.style.height = Math.floor(vp.height / dpr) + "px";
+  cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height); cv.style.width = Math.floor(vp.width / dpr) + "px"; cv.style.height = Math.floor(vp.height / dpr) + "px";
   R.task = page.render({ canvasContext: cv.getContext("2d"), viewport: vp });
   try { await R.task.promise; } catch (e) { if (e && e.name === "RenderingCancelledException") return; }
-  $("#rPage").value = R.page; $("#stage").scrollTop = 0;
-  progress[R.b.id] = { page: R.page, t: Date.now() }; store.set("bp_progress", progress);
+  $("#rPage").value = R.page; $("#stage").scrollTop = 0; progress[R.b.id] = { page: R.page, t: Date.now() }; store.set("bp_progress", progress);
 }
 function go(n) { if (!R.pdf) return; const p = Math.min(Math.max(1, n), R.pdf.numPages); if (p !== R.page) { R.page = p; draw(); } }
 function closeReader() { $("#reader").classList.remove("open"); document.body.style.overflow = ""; R.b = null; R.pdf = null; render(); }
@@ -219,16 +374,9 @@ $("#rNight").onclick = () => $("#reader").classList.toggle("night");
 let tx = null;
 $("#stage").addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
 $("#stage").addEventListener("touchend", e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx, st = $("#stage"); tx = null; if (Math.abs(dx) > 70 && st.scrollWidth <= st.clientWidth + 2) go(R.page + (dx < 0 ? 1 : -1)); });
-document.addEventListener("keydown", e => {
-  if ($("#reader").classList.contains("open") && e.target.tagName !== "INPUT") {
-    if (e.key === "ArrowRight") go(R.page + 1); else if (e.key === "ArrowLeft") go(R.page - 1); else if (e.key === "Escape") closeReader();
-  } else if (e.key === "Escape") closeDetail();
-});
+document.addEventListener("keydown", e => { if ($("#reader").classList.contains("open") && e.target.tagName !== "INPUT") { if (e.key === "ArrowRight") go(R.page + 1); else if (e.key === "ArrowLeft") go(R.page - 1); else if (e.key === "Escape") closeReader(); } else if (e.key === "Escape") closeDetail(); });
 $("#q").oninput = e => { filt.q = e.target.value; render(); };
 $("#sort").onchange = e => { filt.sort = e.target.value; render(); };
-
-fetch("livros.json").then(r => r.json()).then(d => { books = d; render(); })
-  .catch(() => $("#empty").replaceChildren(el("div", { class: "empty", text: "Não foi possível carregar o catálogo. Recarregue a página." })));
 </script>
 </body>
 </html>
